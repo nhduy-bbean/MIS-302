@@ -1,0 +1,710 @@
+---
+title: "Divvy Bike-Share 2024 – Complete Analysis with All Results Shown"
+subtitle: "How Members and Casual Riders Use Divvy Differently"
+author: "Group 3"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: 
+  html_document:
+    theme: cosmo
+    toc: true
+    toc_float: true
+    code_folding: show
+    fig_width: 10
+    fig_height: 6
+---
+# **ASK**
+**What is the problem you are trying to solve?**
+
+Cyclistic currently has two main customer groups: annual members and casual riders. The company's strategic goal is to convert casual riders into annual paying members, as memberships provide stable, long-term revenue and lower maintenance costs.
+
+<span style="color:red; font-weight:bold;">
+Key Issue: How to understand the differences in riding behavior between annual members and casual customers, and then build effective marketing strategies to increase conversion rates to annual members?
+</span>
+
+
+**How can your insights drive business decisions?** **How do the two groups of customers, annual members and casual members, use the service differently?**
+
+These differences appear in the time they ride, the frequency of use, and the purpose of the trip. Through this, the marketing team understands the real needs of casual customers and thereby creates more suitable messages to attract them to switch to the annual membership package.
+In addition to usage behavior, data also helps to know which areas have a high number of casual customers, or which stations are crowded at certain times. This information is very useful for the company to optimize the number of cars at each station, improving the user experience. This is also an opportunity to place promotional content right at the locations where casual customers often appear, helping to increase awareness of the membership package.
+Furthermore, analyzing seasonal and hourly trends also supports more effective promotion planning and marketing budget allocation. For example, if demand from casual customers increases sharply in the summer, the company can launch promotional programs during this time to encourage them to sign up for membership. Thus, insights from data help Cyclistic make better decisions, optimize costs and aim to increase the number of long-term members.
+
+**Overview about the dataset**
+
+The Cyclistics dataset includes 12 months of complete trip history collected from Chicago’s public bike system. Each row of data corresponds to a single trip, reflecting the full spectrum of customer usage behavior. The data is provided as multiple monthly files, with a similar structure for easy integration and analysis. When aggregated over 12 months, the dataset typically contains 5,860,568 millions of observations and approximately 13 columns. This is a valuable source of information because it captures exactly when, where, and how users interact with the service.
+
+ride_id: Identification code for each trip. This helps distinguish between trips. 
+
+rideable_type: Vehicle Type Used. This is used to analyze customer group preferences.
+started_at: Trip start time (day and hour). This can identify the time of day, day of the week, or trends. 
+
+ended_at: Trip end time. This is combined with started_at to calculate the trip duration.
+start_station_name: The station name where the user starts their trip. This helps identify popular areas. 
+
+end_station_name: The end station name. This is compared with the start point to assess travel behavior. 
+
+start_station_id: Start station identification. This allows more accurate analysis than station names. 
+
+end_station_id: End station identification. This allows more accurate analysis than station names. 
+
+start_lat: Latitude of the start point. This is used to analyze by geographic area. 
+
+start_lng: Longitude of the start point. This is combined with start_lat to determine coordinates. 
+
+end_lat: Latitude of the end point. This helps analyze travel distance and identify popular station clusters. 
+
+end_lng: Longitude of the end point. This is combined with end_lat to analyze regional behavior. 
+
+member_casual: Customer segmentation. This is used to analyze differences between the two customer groups (members vs casual riders). 
+
+
+# **PREPARE**
+## **1) Library loading**
+
+The code begins by loading four important libraries: `tidyverse`, `lubridate`, `janitor`, and `scales`. These libraries support the entire data-processing workflow. Tidyverse offers powerful tools for reading, cleaning, and analysing data; lubridate is used for working with date and time; janitor helps clean column names and check data quality; and scales formats numbers in charts. This step prepares the environment for working with a large and complex dataset like Divvy Bike.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+# ─── Automatically install missing packages (works every time) ───
+pkgs <- c("tidyverse", "lubridate", "scales", "knitr", "kableExtra", "janitor")
+installed <- pkgs %in% rownames(installed.packages())
+if (any(!installed)) {
+  install.packages(pkgs[!installed], repos = "https://cran.rstudio.com/")
+}
+
+# Load packages
+library(tidyverse)
+library(lubridate)
+library(scales)
+library(knitr)
+library(kableExtra)
+```
+
+## **2) Data import**
+
+Next, the program uses the `read_csv()` function to read 12 separate CSV files, each representing one month of Divvy Bike trip data in 2024. Every file is stored in a different dataframe, such as df1, df2, and so on. This ensures that all monthly data is loaded correctly. The `read_csv()` function reads files quickly and automatically detects the correct data types, which reduces the need for manual adjustments.
+```{r}
+setwd("C:/Users/ADMIN/OneDrive/Desktop/mis 302/group capstone project code draft 2/data/data")
+# Load individual monthly datasets (as per your code)
+df1 <- read_csv("202401-divvy-tripdata.csv")
+df2 <- read_csv("202402-divvy-tripdata.csv")
+df3 <- read_csv("202403-divvy-tripdata.csv")
+df4 <- read_csv("202404-divvy-tripdata.csv")
+df5 <- read_csv("202405-divvy-tripdata.csv")
+df6 <- read_csv("202406-divvy-tripdata.csv")
+df7 <- read_csv("202407-divvy-tripdata.csv")
+df8 <- read_csv("202408-divvy-tripdata.csv")
+df9 <- read_csv("202409-divvy-tripdata.csv")
+df10 <- read_csv("202410-divvy-tripdata.csv")
+df11 <- read_csv("202411-divvy-tripdata.csv")
+df12 <- read_csv("202412-divvy-tripdata.csv")
+
+# Verify files (as per your code)
+list.files(pattern = "*.csv")  # Should show your files
+```
+## **3) Column specification**
+
+This console output comes from the `glimpse()` function, and it shows the data types of the columns in the Divvy dataset. The chr group (character) includes 7 columns that store text values, such as ride IDs, bike types, and station names. The dbl group (double) contains 4 numeric columns, mainly the GPS coordinates of the start and end locations. Finally, the dttm group (date-time) has 2 columns that record when each trip started and ended. This information helps you understand the overall structure of the dataset and how each column is stored before moving on to further analysis.
+
+## **4) Combining data**
+
+In this step, the `bind_rows()` function is used to combine the 12 monthly data tables into one large table called combined_data. This function stacks the tables row by row, meaning February data will follow January, March will follow February, and so on until December. As a result, you have a complete data set for the entire year 2024, which is much more convenient for trend analysis, comparison, or visualization.
+```{r}
+# Combine datasets using bind_rows (as per your code)
+combined_data <- bind_rows(df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11, df12)
+
+# Assign to trip_data for analysis
+trip_data <- combined_data
+```
+
+## **5) Quick integrity Check**
+
+The print(paste("Raw nrow:", nrow(trip_data))) command displays the row count of the merged data table. This is a simple way to verify that you have imported the entire year's data. If the row count is unusually low, it is likely that one of the CSV files is missing, misnamed, or has corrupted data. Checking the row count will help you spot these issues sooner.
+
+```{r}
+# Quick integrity check
+print(paste("Raw nrow:", nrow(trip_data)))
+```
+
+## **6) Data inspection**
+
+The `glimpse(trip_data)` function provides an overview of the dataset, including the list of column names, the data type of each column, and a few sample values. This is an important step to understand how the data is organized, which helps you decide which variables need to be transformed or cleaned before analysis. `glimpse()` allows you to quickly and effectively assess the initial quality of the data.
+
+```{r}
+glimpse(trip_data)
+```
+**Where is your data located?**
+
+The data is stored as CSV files on the local computer, in the directory the user has selected as the working directory in RStudio. Each file corresponds to a month in the 2024 Divvy Tripdata dataset (example:  202410-divvy-tripdata.csv, 202411-divvy-tripdata.csv, 202412-divvy-tripdata.csv). When running the code, R reads these files directly from the directory that has been manually installed by selecting the path on the local computer.
+
+**How is the data organized?**
+
+The data is organized into separate CSV files, with each file representing one month of the Divvy 2024 dataset. Every file shares the same structure, containing columns such as start time, end time, bike type, station information, and trip details. After loading the files, combine them into one full dataset using `bind_rows()`, which allows to analyze the whole year’s data in a single dataframe.
+
+**Are there any problems with the data?**
+
+There may be several issues in the dataset, such as missing values in columns like station names or coordinates, or invalid records where the end time happens before the start time. Some trips may also have negative or unrealistic durations. In addition, some date-time values might be read as character strings and need to be converted and combining many large files may also slow down the processing.
+
+# **PROCESS**
+## **1) Total number of missing values in the entire dataset**
+
+This code measures the total number of missing values in the dataset. The function `is.na()` scans every cell and returns TRUE for missing entries, and `sum()` counts all TRUE values to compute the total NA count. The result gives a global view of how complete the dataset is before investigating individual variables. The `print()` function is used to output the result as a readable message in the console.
+
+```{r}
+# COUNT MISSING VALUES (NA)
+# Total number of missing values in the entire dataset
+total_na <- sum(is.na(trip_data))
+print(paste("Total missing values in dataset:", total_na))
+```
+
+## **2) Missing values per column (most common & recommended)**
+
+This step analyzes missing values at the column level by combining multiple functions into one pipeline. First, `summarise()` with `across()` applies `sum(is.na(.))` to each column, generating the number of missing entries for every variable. Then `pivot_longer()` reshapes the results into a long format, making the output easier to read and interpret. The `arrange()` function sorts columns in descending order of missing values so the most problematic fields appear at the top. Finally, `mutate()` computes the percentage of missing data using the total number of rows and rounds the values for clarity. This summary shows that station-related columns have the highest missing rates (~18%), while important fields such as ride ID, timestamps, and user type contain no missing values.
+
+```{r}
+# Missing values per column (most common & recommended)
+trip_data %>%
+  summarise(across(everything(), ~ sum(is.na(.)))) %>%
+  pivot_longer(everything(), names_to = "column", values_to = "missing_count") %>%
+  arrange(desc(missing_count)) %>%
+  mutate(missing_percent = round(missing_count / nrow(trip_data) * 100, 2))
+```
+## **3) Duplicate**
+
+This code evaluates duplicate issues by checking the total number of fully duplicated rows and identifying repeated ride_id values using two validation methods. The `duplicated()` function detects repeated entries, while the `count()` + `filter(n > 1)` method double-checks duplicated ride IDs by grouping and counting occurrences. The `cat()` function is used to format the results into a clean, readable summary. It allows text labels, calculated values, and line breaks (\n) to be printed together as a structured output, producing the clear console display shown above.
+
+```{r}
+# DUPLICATES
+cat("Data quality - Duplicates summary:\n")
+cat("Exact duplicate rows         :", sum(duplicated(trip_data)), "\n")
+cat("Duplicate ride_id (method 1)  :", sum(duplicated(trip_data$ride_id)), "\n")
+cat("Duplicate ride_id (method 2)  :", nrow(filter(count(trip_data, ride_id), n > 1)), "\n")
+sum(duplicated(trip_data$ride_id))
+```
+
+## **4) Outlier checks**
+
+#**Step 1 – Calculate ride duration (minutes)**
+
+This step creates a new variable, ride_length_min, by computing the difference between the start and end timestamps of each trip. The `difftime()` function measures the time gap in minutes, and `as.numeric()` converts it into a clean numeric format. This duration variable is essential because all later cleaning, filtering, and outlier detection rely on accurate ride-length calculations.
+
+```{r}
+# OUTLIER CHECKS 
+# First, calculate ride duration in minutes (you’ll need this for everything)
+trip_data <- trip_data %>%
+  mutate(
+    ride_length_min = as.numeric(difftime(ended_at, started_at, units = "mins"))
+  )
+```
+#**Step 2 – Outlier summary table**
+
+This code produces a compact table summarizing all major outlier categories in the dataset. It counts unrealistic or invalid ride durations (negative, zero, under one minute, over 12 or 24 hours) and identifies trips whose start or end coordinates fall outside Chicago’s geographic boundaries. The use of `summarise()` allows all checks to be performed in a single step, while `pivot_longer()` converts the results into a simple two-column table that is easier to interpret and visualize.
+
+```{r}
+# Quick summary table of all outliner flags (my favorite – one single output)
+trip_data %>%
+  summarise(
+    total_rides                = n(),
+    negative_or_zero_duration  = sum(ride_length_min <= 0, na.rm = TRUE),
+    under_1_minute             = sum(ride_length_min > 0 & ride_length_min < 1, na.rm = TRUE),
+    over_24_hours             = sum(ride_length_min > 1440, na.rm = TRUE),
+    over_12_hours              = sum(ride_length_min > 720, na.rm = TRUE),
+    start_outside_chicago      = sum(!between(start_lng, -88.0, -87.5) |
+                                       !between(start_lat, 41.6, 42.1), na.rm = TRUE),
+    end_outside_chicago        = sum(!between(end_lng, -88.0, -87.5) |
+                                       !between(end_lat, 41.6, 42.1), na.rm = TRUE)
+  ) %>%
+  pivot_longer(everything(), names_to = "outlier_type", values_to = "count")
+```
+#**Step 3 – Handling Outliers**
+
+Because the outliers occur in very large numbers,  such as negative or zero ride durations, extremely short rides, very long rides, and a small number of trips ending slightly outside Chicago,  addressing them properly would require domain knowledge about how these situations arise or are recorded in the system. Without that context, removing or modifying these records could distort actual usage patterns or introduce unintended bias. Therefore, the safest approach is to retain all outlier entries rather than make adjustments based on uncertain assumptions.
+
+## **5) Cleansing missing values**
+#**Step 1 – Impute start-station fields using grouped latitude/longitude**
+
+In this step, the dataset is grouped by rounded start latitude and longitude `(start_lat_r and start_lng_r)` so rows that come from the same physical station fall into the same group. Inside each group, the code replaces missing start_station_name and start_station_id by finding the most common non-missing value using `na.omit()` and `table()`. If a group contains only missing values, the result stays as NA. This method fills missing station information consistently based on actual station locations. After imputation, the grouping is removed and the temporary coordinate columns are dropped to keep the dataset clean.
+
+#**Step 2 – Impute end-station fields using grouped latitude/longitude (exactly the same logic)**
+
+This step applies the exact same process to the end-station information. The data is grouped by rounded end_lat and end_lng, and missing values ​​in end_station_name and end_station_id are filled using the most frequent valid value in each group. If a group has no valid values, the missing values ​​remain NA. Once the imputation is complete, the grouping is removed and the temporary columns (end_lat_r, end_lng_r) are deleted. This ensures that all end-station fields are imputed consistently using location-based logic.
+```{r}
+library(tidyverse)
+
+trip_data <- trip_data %>%
+  # START STATIONS – safe imputation (handles groups with only NAs)
+  group_by(start_lat_r = round(start_lat, 5),
+           start_lng_r = round(start_lng, 5)) %>%
+  mutate(
+    start_station_name = {
+      good_name <- na.omit(start_station_name)
+      if(length(good_name) > 0) {
+        as.character(names(sort(table(good_name), decreasing = TRUE))[1])
+      } else {
+        NA_character_
+      }
+    },
+    start_station_id = {
+      good_id <- na.omit(start_station_id)
+      if(length(good_id) > 0) {
+        as.character(names(sort(table(good_id), decreasing = TRUE))[1])
+      } else {
+        NA_character_
+      }
+    }
+  ) %>%
+  ungroup() %>%
+  select(-start_lat_r, -start_lng_r) %>% 
+    # END STATIONS – exactly the same logic
+  group_by(end_lat_r = round(end_lat, 5),
+           end_lng_r = round(end_lng, 5)) %>%
+  mutate(
+    end_station_name = {
+      good_name <- na.omit(end_station_name)
+      if(length(good_name) > 0) {
+        as.character(names(sort(table(good_name), decreasing = TRUE))[1])
+      } else {
+        NA_character_
+      }
+    },
+    end_station_id = {
+      good_id <- na.omit(end_station_id)
+      if(length(good_id) > 0) {
+        as.character(names(sort(table(good_id), decreasing = TRUE))[1])
+      } else {
+        NA_character_
+      }
+    }
+  ) %>%
+  ungroup() %>%
+  select(-end_lat_r, -end_lng_r) %>% 
+  # END STATIONS – exactly the same logic
+  group_by(end_lat_r = round(end_lat, 5),
+           end_lng_r = round(end_lng, 5)) %>%
+  mutate(
+    end_station_name = {
+      good_name <- na.omit(end_station_name)
+      if(length(good_name) > 0) {
+        as.character(names(sort(table(good_name), decreasing = TRUE))[1])
+      } else {
+        NA_character_
+      }
+    },
+    end_station_id = {
+      good_id <- na.omit(end_station_id)
+      if(length(good_id) > 0) {
+        as.character(names(sort(table(good_id), decreasing = TRUE))[1])
+      } else {
+        NA_character_
+      }
+    }
+  ) %>%
+  ungroup() %>%
+  select(-end_lat_r, -end_lng_r)
+```
+#**Step 3 – Check remaining missing values for station fields**
+
+After completing both imputations, this step counts how many missing values remain in the four key fields: start_station_name, start_station_id, end_station_name, and end_station_id. The `summarise(across())` function applies `sum(is.na(.))` to each variable. This quick diagnostic confirms whether the imputation was effective and whether any station information still requires attention before final cleaning.
+
+```{r}
+trip_data %>%
+  summarise(across(c(start_station_name, start_station_id,
+                     end_station_name, end_station_id),
+                   ~ sum(is.na(.))))
+```
+#**Step 4 – Label unavoidable missings and standardize station fields**
+
+Some trips do not have a station because they start or end on the street. These missing values cannot be imputed, so this step converts remaining NAs into clear, readable labels using `coalesce()`. Missing start stations become “No Station (Street Pickup)” and missing end stations become “No Station (Street Dropoff).” Station IDs are also standardized into "NO_STATION". This creates consistent, analysis-friendly values instead of leaving blank fields.
+
+#**Step 5 – Calculate duration and remove bad rides**
+
+In this step, the code calculates the ride length in minutes using `difftime()` and stores the result as ride_length_min. Then the dataset is filtered to keep only valid trips: longer than 1 minute and shorter than or equal to 1440 minutes (24 hours). Very short or extremely long durations are considered errors and removed. Finally, the temporary duration column is dropped using `select(-ride_length_min)` to keep the dataset clean.
+```{r}
+library(tidyverse)
+
+trip_data_final <- trip_data %>%
+  # Turn the unavoidable missings into readable labels (standard practice)
+  mutate(
+    start_station_name = coalesce(start_station_name, "No Station (Street Pickup)"),
+    start_station_id   = coalesce(start_station_id,   "NO_STATION"),
+    end_station_name   = coalesce(end_station_name,   "No Station (Street Dropoff)"),
+    end_station_id     = coalesce(end_station_id,     "NO_STATION")
+  ) %>%
+    # Calculate duration and remove bad rides
+  mutate(ride_length_min = as.numeric(difftime(ended_at, started_at, units = "mins"))) %>%
+  filter(ride_length_min > 1 & ride_length_min <= 1440) %>%   # 1 min to 24 h only
+  select(-ride_length_min)
+```
+#**Step 6 – Save and quick confirmation**
+
+The final cleaned dataset is saved as a CSV file using `write_csv()`. Then `cat()` prints a confirmation message showing the total number of rides in the cleaned dataset and confirming that missing station names are now fully resolved or properly labeled. This provides a final check that the cleaning workflow has been successfully completed and the data is ready for analysis.
+
+```{r}
+# Quick confirmation
+cat("Final clean dataset has", nrow(trip_data_final), "rides (≈5.72 million)\n")
+cat("Missing station names now = 0 → all labelled properly\n")
+```
+## **6) Cleansing duplicates**
+
+```{r}
+trip_data_final <- trip_data_final %>%
+  distinct(ride_id, .keep_all = TRUE) %>%
+  arrange(started_at)
+
+cat("Deduplication complete!\n")
+cat("Final number of unique rides :", nrow(trip_data_final), "\n")
+cat("Any duplicate ride_id left   :", any(duplicated(trip_data_final$ride_id)), "\n")
+```
+
+#**Handling cleansing duplicates**
+
+The code removes duplicate ride records from the dataset by keeping only one row for each unique ride_id and preserving all related information using `distinct(ride_id, .keep_all = TRUE)`. After that, the dataset is sorted by the started_at column to keep the rides in chronological order. The `cat()` statements print confirmation messages, including the total number of unique rides remaining after deduplication and whether any duplicated ride_id values still exist. The result shows that the process was successful, with no duplicates left. Finally, the cleaned dataset is saved to a new CSV file named 2024_divvy_tripdata_clean_final_noduplicates.csv for later use.
+
+# **ANALYZE**
+
+```{r}
+library(tidyverse)
+library(scales)
+
+# Run this once if you haven’t already (creates the flags we need)
+trip_data <- trip_data %>%
+  mutate(
+    ride_length_min = as.numeric(difftime(ended_at, started_at, units = "mins")),
+    duration_group = case_when(
+      ride_length_min <= 0                  ~ "≤ 0 min (bad)",
+      ride_length_min < 1                   ~ "< 1 min (bad)",
+      ride_length_min <= 60                 ~ "1–60 min",
+      ride_length_min <= 120                ~ "1–2 hours",
+      ride_length_min <= 720                ~ "2–12 hours",
+      ride_length_min <= 1440               ~ "12–24 hours",
+      TRUE                                  ~ "> 24 hours (bad)"
+    ) %>% factor(levels = c("≤ 0 min (bad)", "< 1 min (bad)", "1–60 min", 
+                            "1–2 hours", "2–12 hours", "12–24 hours", "> 24 hours (bad)")),
+    is_outlier = ride_length_min <= 0 | ride_length_min < 1 | ride_length_min > 1440
+  )
+```
+Most of rides are popular between 1 to 100 mins that shows users often rents in the short time (maybe for commute or short-ride). However, some of them also are shorter than 1 minute rides and higher than 100-minute rides (maybe due to errors or the time users take the ride is longer/shorter than).
+
+```{r}
+#histogram
+ggplot(trip_data, aes(x = ride_length_min)) +
+  geom_histogram(binwidth = 0.1, fill = "#2b8cbe", color = "white") +
+  scale_x_log10(labels = comma) +
+  labs(title = "Ride Duration Distribution (log scale)",
+       subtitle = "Outliers clearly visible on both ends",
+       x = "Ride duration (minutes) – log scale",
+       y = "Number of rides") +
+  theme_minimal(base_size = 13)
+```
+This bar chart highlights that the first three bars are uncommon rides (0 min, under 1mins and higher than 24 hours). So it clearly shows that just green bar is normal rides that is from 1mins to lower than 24 hours. 
+
+```{r}
+#Barchart
+trip_data %>%
+  summarise(
+    `Negative/Zero duration` = sum(ride_length_min <= 0, na.rm = TRUE),
+    `< 1 minute`             = sum(ride_length_min > 0 & ride_length_min < 1, na.rm = TRUE),
+    `> 24 hours`             = sum(ride_length_min > 1440, na.rm = TRUE),
+    `Normal rides`           = sum(ride_length_min >= 1 & ride_length_min <= 1440, na.rm = TRUE)
+  ) %>%
+  pivot_longer(everything(), names_to = "Category", values_to = "Count") %>%
+  mutate(Category = factor(Category, levels = c("Negative/Zero duration", "< 1 minute", 
+                                                "> 24 hours", "Normal rides"))) %>%
+  ggplot(aes(x = Category, y = Count, fill = Category)) +
+  geom_col(width = 0.7) +
+  geom_text(aes(label = comma(Count)), vjust = -0.5, size = 5, fontface = "bold") +
+  scale_y_continuous(labels = comma) +
+  scale_fill_manual(values = c("red", "orange", "darkred", "#4daf4a")) +
+  labs(title = "Outlier Summary – 2024 Divvy Data",
+       subtitle = "Total rides: 5,860,568",
+       x = "", y = "Number of rides") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "none")
+```
+
+There are around 107k rides lack of start station name information, while approximately 110k rides lack of end station name
+
+# **SHARE**
+
+```{r}
+library(tidyverse)
+library(scales)
+# 1. Monthly rides – members vs casual
+trip_data_final %>%
+  mutate(month = month(started_at, label = TRUE)) %>%
+  count(member_casual, month) %>%
+  ggplot(aes(x = month, y = n, fill = member_casual)) +
+  geom_col(position = "dodge", width = 0.7) +
+  scale_y_continuous(labels = comma) +
+  scale_fill_manual(values = c("casual" = "#ff6b6b", "member" = "#4ecdc4")) +
+  labs(title = "Monthly Rides in 2024: Members vs Casual Riders",
+       x = "Month", y = "Number of Rides", fill = "User Type") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "top")
+```
+
+The first plot compares the number of rides taken by casual riders versus members each month in 2024. The code creates a bar chart where each month is represented, and the colors indicate whether the rider is a member or a casual user.
+**Step-by-Step Explanation of the Code:**
+
+**1.Data Transformation (mutate & count):**
+
+- `mutate(month = month(started_at, label = TRUE))` creates a new variable called month based on the started_at time.
+- `count(member_casual, month)` counts the number of rides for each user type (casual or member) grouped by month.
+
+**2.Plot Creation (ggplot):**
+
+- `aes(x = month, y = n, fill = member_casual)` specifies the aesthetics: months on the x-axis, ride count (n) on the y-axis, and coloring the bars based on user type (member_casual).
+- `geom_col(position = "dodge", width = 0.7)` creates a bar chart with bars for both user types side by side.
+- The fill colors are manually defined for casual (red) and member (teal) riders using `scale_fill_manual()`.
+- The chart labels the axes (x for month, y for number of rides) and titles the chart with a title: "Monthly Rides in 2024: Members vs Casual Riders".
+
+**Insights:**
+- The number of rides is consistently higher for members compared to casual riders.
+- Peaks in rides for both user types are observed during summer months (June-Sept), with members having higher consistency in ride counts year-round.
+- Casual riders tend to have more rides in the warmer months but drop significantly during the winter months, suggesting seasonal usage.
+
+```{r}
+# Average ride duration by day of week
+trip_data_final %>%
+  mutate(
+    day_of_week = wday(started_at, label = TRUE, week_start = 1),
+    ride_length_min = as.numeric(difftime(ended_at, started_at, units = "mins"))
+  ) %>%
+  group_by(member_casual, day_of_week) %>%
+  summarise(avg_min = mean(ride_length_min), .groups = "drop") %>%
+  ggplot(aes(x = day_of_week, y = avg_min, fill = member_casual)) +
+  geom_col(position = "dodge", width = 0.8) +
+  scale_fill_manual(values = c("casual" = "#ff9ff3", "member" = "#1a535c")) +
+  labs(title = "Average Ride Duration by Day of Week",
+       subtitle = "Casual riders take much longer weekend rides",
+       x = "Day of Week", y = "Average Duration (minutes)") +
+  theme_minimal(base_size = 14)
+```
+The second plot shows the average ride duration (in minutes) for casual riders and members by day of the week. The aim is to compare the average time spent per ride between these two groups.
+
+**Step-by-Step Explanation of the Code:**
+
+**1.Data Transformation (mutate & group_by):**
+
+- `mutate(day_of_week = wday(started_at, label = TRUE))` extracts the day of the week from the started_at column.
+- `ride_length_min = as.numeric(difftime(ended_at, started_at, units = "mins"))` calculates the ride duration in minutes.
+- `group_by(member_casual, day_of_week)` groups the data by user type and day of the week.
+- `summarise(avg_min = mean(ride_length_min))` computes the average ride duration for each user type by day of the week.
+
+**2.Plot Creation (ggplot):**
+
+- `aes(x = day_of_week, y = avg_min, fill = member_casual)` specifies the day of the week, average duration, and colors the bars by user type.
+- `geom_col(position = "dodge", width = 0.8)` creates a side-by-side bar chart for each day.
+- The color for casual riders is pink and for members is dark green, set by `scale_fill_manual()`.
+The chart includes titles and axis labels indicating the average ride duration by day of the week.
+
+**Insights:**
+- Casual riders tend to have much longer ride durations, especially on weekends (Saturday and Sunday), whereas members generally have shorter, more consistent ride durations throughout the week.
+- On weekdays, both casual and member riders have similar average ride durations, but casual riders still slightly exceed members on average.
+
+```{r}
+# Hourly usage heatmap
+trip_data_final %>%
+  mutate(hour = hour(started_at)) %>%
+  count(member_casual, hour) %>%
+  ggplot(aes(x = hour, y = member_casual, fill = n)) +
+  geom_tile(color = "white", size = 0.5) +
+  scale_fill_gradient(low = "#e8f4f8", high = "#006ba6", labels = comma) +
+  scale_x_continuous(breaks = seq(0, 23, 2)) +
+  labs(title = "Peak Usage Hours in 2024",
+       x = "Hour of Day", y = "", fill = "Rides") +
+  theme_minimal(base_size = 14)
+```
+The third plot is a heatmap that shows peak usage hours of the day for both members and casual riders. The goal is to highlight the hours when bike usage is highest.
+
+**Step-by-Step Explanation of the Code:**
+
+**1.Data Transformation (mutate & count):**
+
+- `mutate(hour = hour(started_at))` extracts the hour of the day from the started_at column.
+- `count(member_casual, hour)` counts the number of rides taken by each user type for every hour.
+
+**2.Plot Creation (ggplot):**
+
+- `aes(x = hour, y = member_casual, fill = n)` creates a heatmap where the x-axis is the hour of the day, the y-axis is the user type, and the fill color represents the number of rides.
+- `geom_tile(color = "white", size = 0.5)` creates tiles for the heatmap with white borders.
+- The color `scale (scale_fill_gradient())` defines the gradient, with lighter colors representing fewer rides and darker colors representing more rides.
+- The chart title and axis labels indicate peak usage hours, with the x-axis representing the hour of the day.
+
+**Insights:**
+Members have a consistent usage pattern throughout the day, with peaks during early morning (8-9 AM) and evening (5-6 PM) hours, likely corresponding to commuting times.
+Casual riders have a more irregular pattern but show a clear peak around 5-6 PM, indicating that casual riders tend to use bikes for leisure or recreational purposes later in the day.
+
+## **Summary:**
+
+**1) Were you able to answer the question of how annual members and casual riders use Cyclistic bikes differently?**
+
+- Yes, the data reveals clear differences in usage patterns between casual riders and members. Members use bikes more consistently throughout the year, especially during weekdays, while casual riders show seasonal and weekend-heavy usage patterns.
+
+**2) What story does your data tell?**
+
+- Members tend to ride more frequently and have shorter, more practical rides, typically for commuting, whereas casual riders have more sporadic usage, often with longer rides on weekends, likely for leisure or recreation.
+
+**3) How do your findings relate to your original question?**
+
+- These findings suggest that casual riders could be converted into members by emphasizing the benefits of frequent, short, and convenient trips, especially during weekdays.
+
+**4) Who is your audience?**
+
+ -The audience includes marketing executives, business analysts, and Cyclistic decision-makers who are focused on increasing the number of annual memberships.
+
+**5) What is the best way to communicate with them?**
+
+- Data visualization is an effective way to communicate these insights. The charts clearly show the differences in usage patterns and can help decision-makers understand the potential for converting casual riders into members.
+
+**6) Can data visualization help you share your findings?**
+
+- Yes, the visualizations effectively convey the trends in user behavior and the differences between casual and member riders. The heatmap, bar charts, and line plots make the analysis visually appealing and easy to understand.
+
+**7) Is your presentation accessible to your audience?**
+
+- The visualizations are designed with clarity in mind and use color schemes and labels that make the data easy to interpret.
+
+# **ACT**
+
+```{r}
+# Top 10 starting stations by user type
+trip_data_final %>%
+  count(start_station_name, member_casual) %>%
+  group_by(member_casual) %>%
+  slice_max(n, n = 10) %>%
+  ungroup() %>%
+  mutate(start_station_name = fct_reorder(start_station_name, n)) %>%
+  ggplot(aes(x = n, y = start_station_name, fill = member_casual)) +
+  geom_col() +
+  facet_wrap(~ member_casual, scales = "free_y") +
+  scale_x_continuous(labels = comma) +
+  labs(title = "Top 10 Starting Stations by User Type",
+       x = "Number of Rides", y = "") +
+  theme_minimal(base_size = 13)
+```
+This plot identifies and compares the most frequently used starting stations for casual riders versus annual members. The code filters the dataset to find the top 10 stations for each group and displays them in a side-by-side bar chart to highlight differences in usage locations.
+
+**Step-by-Step Explanation of the Code:**
+
+**1) Data Transformation (count & slice_max):**
+
+- `count(start_station_name, member_casual)` calculates the total number of rides starting at each specific station, broken down by user type.
+- `group_by(member_casual)` groups the data so the next operation applies to members and casual users separately.
+- `slice_max(n, n = 10)` filters the data to keep only the top 10 stations with the highest ride counts (n) for each group.
+- `ungroup()` removes the grouping structure to prevent errors in subsequent steps.
+
+**2) Plot Creation (ggplot):**
+
+- `mutate(start_station_name = fct_reorder(...))` reorders the start_station_name factor based on the ride count (n). This ensures the bars in the chart are sorted from highest to lowest rather than alphabetically.
+- `geom_col()` creates the bar chart.
+- `facet_wrap(~ member_casual, scales = "free_y")` splits the chart into two panels (one for "casual" and one for "member"). The `scales = "free_y"` argument is crucial here: it allows each panel to have its own independent list of station names on the y-axis, since the top 10 stations are different for each group.
+- `scale_x_continuous(labels = comma)` formats the x-axis numbers (ride counts) with commas for readability (e.g., 200,000 instead of 200000).
+- `theme_minimal(base_size = 13)` applies a clean visual theme with a slightly larger base font size
+
+**Insights:**
+**1) Casual Riders are Tourists and Visitors:**
+
+- Apart from picking up bikes on the street, the most popular starting points for this group are located near famous tourist spots and parks along the lake. Station names like "Streeter Dr & Grand Ave" (Navy Pier) and "Shedd Aquarium" show that their main reason for using the bikes is for sightseeing and enjoying their free time.
+
+**2) Members are Daily Commuters:**
+
+- In contrast, the stations used by members are found in busy business areas and near main transport centers. Specifically, there are many stations on "Clinton St" (like Clinton St & Washington Blvd), which is very close to major train stations. This proves that members use bikes to travel the short distance between the train station and their office.
+
+**3) "Street Pickup" is the Most Popular Choice:**
+
+- For both groups, the highest number of rides start with "No Station (Street Pickup)". This shows that electric bikes (e-bikes) are becoming very popular because they are flexible. Users can lock these bikes anywhere instead of finding a specific docking station. Even though members and casual riders have different goals, they both like this convenient feature.
+
+## **Strategy Implication**
+
+**1) Different Goals Require Different Messages:**
+
+- The company cannot use a "one size fits all" strategy. Because Casual riders use bikes for fun and sightseeing, while Members use them to get to work, marketing campaigns must be separated. Advertising "fast commuting" to a tourist at Navy Pier will not work.
+
+**2) Location is Key for Conversion:**
+- Since we know exactly where Casual riders congregate (Navy Pier, Aquarium, Parks), we can focus our budget on these specific areas instead of advertising across the whole city.
+
+## **Recommendations**
+
+**1) Target Marketing at Recreational Hubs:**
+
+- Place physical advertisements and digital billboards at the top 3 casual stations: Streeter Dr & Grand Ave, Shedd Aquarium, and Millennium Park.
+- Message: Focus on the "fun" of exploring Chicago. For example: "See the city sights on two wheels."
+
+**2) Create "Leisure-Oriented" Membership Options:**
+
+- Casual riders might not buy a full annual membership because they only ride in summer.
+- Action: Introduce a "Summer Pass" or a "Weekend Pass" specifically for riders starting at these tourist locations. This converts them into members without demanding a full-year commitment.
+
+**3) Partner with Local Attractions:**
+
+- Since casual riders are visiting the Aquarium and Museums, the company should partner with these venues.
+- Action: Offer a discount code for a bike ride when someone buys a ticket to the Shedd Aquarium or Navy Pier
+
+**4) Prioritize Bike Availability at Transit Stations:**
+
+- To keep current Members happy, the company must ensure there are always bikes available at Clinton St & Washington Blvd and other train station hubs during rush hour. Reliability is the most important factor for these commuters.
+
+```{r}
+# Bike type preference
+trip_data_final %>%
+  count(rideable_type, member_casual) %>%
+  group_by(member_casual) %>%
+  mutate(pct = n / sum(n)) %>%
+  ggplot(aes(x = member_casual, y = pct, fill = rideable_type)) +
+  geom_col(position = "fill", width = 0.7) +
+  scale_y_continuous(labels = percent) +
+  scale_fill_manual(values = c("classic_bike" = "#8ecae6",
+                               "electric_bike" = "#2a9d8f",
+                               "docked_bike" = "#e63946")) +
+  labs(title = "Bike Type Preference: Members vs Casual",
+       subtitle = "Casual riders love electric bikes!",
+       x = "", y = "Percentage of Rides", fill = "Bike Type") +
+  theme_minimal(base_size = 14)
+```
+**Bike Type Preference: Members vs Casual**
+
+This plot analyzes which type of bike (classic, electric, or docked) each user group prefers. It uses a 100% stacked bar chart to show the proportion of bike choices rather than total ride counts, making it easier to compare the preferences of the two groups directly.
+
+**Step-by-Step Explanation of the Code:**
+
+**1) Data Transformation (count & mutate):**
+
+- `count(rideable_type, member_casual)` calculates the total number of rides for each bike type within each user group.
+- `group_by(member_casual)` groups the data so calculations are done separately for members and casuals.
+- `mutate(pct = n / sum(n))` creates a new column pct that calculates the percentage share of each bike type within its group (e.g., what % of member rides were electric).
+
+**2) Plot Creation (ggplot):**
+- `geom_col(position = "fill")` creates a stacked bar chart where the bars are stretched to fill 100% of the y-axis. This is critical for comparing proportions rather than raw volume.
+- `scale_y_continuous(labels = percent)` formats the y-axis labels as percentages (0%, 25%, 50%, etc.) instead of decimals.
+-` scale_fill_manual(...)` assigns specific colors to the bike types to make them distinct: Light Blue for Classic, Teal for Electric, and Red for Docked bikes.
+- The labs function sets the title and adds a subtitle ("Casual riders love electric bikes!") to highlight the main takeaway.
+
+## **Insights:**
+
+**Casual Riders "Pay for Power" (Electric Preference):**
+
+- Casual riders show a higher preference for electric bikes (the teal section is noticeably larger than the light blue section). This aligns with the "tourist" persona identified earlier—they prioritize comfort and fun. They are likely willing to pay a premium for an e-bike to sightsee without the physical exertion of pedaling a heavy classic bike.
+
+**Members are Pragmatic and Flexible:**
+
+- Annual members exhibit a near-perfect 50/50 split between classic and electric bikes. This suggests they are "utility" users. They likely choose whichever bike is closest to the dock to get to work faster, or they may intentionally choose classic bikes to save money (if e-bikes have surcharges) or for daily exercise.
+
+**The "Docked Bike" Niche:**
+
+- The chart shows a small segment of "docked_bike" usage exclusively for casual riders (the small strip at the bottom of the casual bar). Members have zero usage in this category. This indicates that "docked bikes" (often older models or single-trip specific rentals) are a product used solely by the casual market.
+
+## **Strategy Implication & Recommendation**
+**1. Leverage E-Bikes as the "Hook" for Tourists**
+
+- Implication: Since casual riders clearly prefer electric bikes, this is their primary motivator.
+- Recommendation: Marketing campaigns at tourist locations (Navy Pier, etc.) should feature images of electric bikes specifically, not classic ones.
+
+**2. Membership Perk: E-Bike Incentives**
+
+- Implication: Members are currently using classic bikes 50% of the time. If the goal is to add value to the membership, e-bikes are a luxury perk.
+- Recommendation: Include "Free E-Bike Unlocks" or "Discounted E-Bike Minutes" as a core benefit of the Annual Membership. If a casual rider realizes that becoming a member makes their favorite electric rides cheaper, they are more likely to switch.
+
+**3. Inventory Management Strategy**
+
+- Implication: Demand for electric bikes is high across both groups (over 50% for casuals, 50% for members).
+- Recommendation: Operations teams must prioritize charging and redistributing electric bikes to the top tourist stations on weekends. A lack of charged e-bikes at Navy Pier will result in lost revenue from casual riders who specifically want that effortless experience.
